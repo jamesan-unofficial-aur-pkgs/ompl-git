@@ -1,31 +1,45 @@
-# Maintainer: Sven Schneider <archlinux.sandmann@googlemail.com>
+# Maintainer: James An <james@jamesan.ca>
+# Contributor: Sven Schneider <archlinux.sandmann@googlemail.com>
 
-pkgname=ompl
-pkgver=1.1.0
+pkgname=ompl-git
+_pkgname=${pkgname%-git}
+pkgver=1.0.0.r402.gc1bceb6
 pkgrel=1
 pkgdesc="The Open Motion Planning Library (OMPL) consists of many state-of-the-art sampling-based motion planning algorithms"
 arch=('i686' 'x86_64')
-url="http://ompl.kavrakilab.org/"
+url="http://ompl.kavrakilab.org"
 license=('BSD')
 depends=('boost-libs' 'python' 'python-matplotlib')
-makedepends=('boost' 'cmake')
+makedepends=('boost' 'cmake' 'git')
 optdepends=('py++: Python binding'
             'ode: Plan using the Open Dynamics Engine'
             'eigen: For an informed sampling technique')
-source=(https://bitbucket.org/ompl/ompl/downloads/${pkgname}-${pkgver}-Source.tar.gz)
-sha512sums=('ad9331eb79d64ce61132511affc7a713611c55fbbf85c0092fa0ed5a210be3810ce181608f5c278eea56e5227914e24920dc5375e110972f22e6befaf4f199f8')
+provides=("$_pkgname=$pkgver")
+conflicts=("$_pkgname")
+source=("$_pkgname"::"git+https://github.com/$_pkgname/$_pkgname.git")
+md5sums=('SKIP' 'SKIP')
+
+pkgver() {
+    cd "$_pkgname"
+    (
+        set -o pipefail
+        git describe --long --tag | sed -r 's/([^-]*-g)/r\1/;s/-/./g' ||
+        printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    )
+}
 
 prepare() {
-  cd "${srcdir}/${pkgname}-${pkgver}-Source"
+  cd "$_pkgname"
 
-  sed -e 's#\#include <boost/random/mersenne_twister.hpp>#\#include <boost/random/mersenne_twister.hpp>\n\#include <boost/type_traits/ice.hpp>#g' -i src/ompl/util/RandomNumbers.h
+  sed -i '/^\s*#include <boost/random/mersenne_twister.hpp>\s*$/a #include <boost/type_traits/ice.hpp>' src/ompl/util/RandomNumbers.h
 
-  rm -rf build
+  # (Re)create empty build folder
+  [ -d build ] && rm -rf build &>/dev/null
   mkdir build
 }
 
 build() {
-  cd "${srcdir}/${pkgname}-${pkgver}-Source/build"
+  cd "$_pkgname/build"
 
   cmake -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX=/usr \
@@ -37,17 +51,17 @@ build() {
 }
 
 check() {
-  cd "${srcdir}/${pkgname}-${pkgver}-Source/build"
+  cd "$_pkgname/build"
 
-  #make test
+  make test
 }
 
 
 package() {
-  cd "${srcdir}/${pkgname}-${pkgver}-Source"
-
-  install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  cd "$_pkgname"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 
   cd build
-  make DESTDIR=${pkgdir} install
+  make DESTDIR="$pkgdir" install
 }
+
